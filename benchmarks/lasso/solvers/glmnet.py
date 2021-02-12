@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import sparse
 
 from benchopt.base import BaseSolver
 from benchopt.util import safe_import_context
@@ -19,14 +20,25 @@ class Solver(BaseSolver):
     name = "glmnet"
 
     install_cmd = 'conda'
-    requirements = ['r-base', 'rpy2', 'r-glmnet']
+    requirements = ['r-base', 'rpy2', 'r-glmnet', 'r-matrix']
     stop_strategy = 'iteration'
-    support_sparse = False
+    support_sparse = True
 
     def set_objective(self, X, y, lmbd):
-        self.X, self.y, self.lmbd = X, y, lmbd
+        self.y, self.lmbd = y, lmbd
         self.lmbd_max = np.max(np.abs(X.T @ y))
         self.glmnet = robjects.r['glmnet']
+
+        if sparse.issparse(X):
+            r_Matrix = packages.importr("Matrix")
+            self.X = r_Matrix.sparseMatrix(
+                i = robjects.IntVector(X.row + 1),
+                j = robjects.IntVector(X.col + 1),
+                x = robjects.FloatVector(X.data),
+                dims = robjects.IntVector(X.shape)
+            )
+        else:
+            self.X = X
 
     def run(self, n_iter):
         fit_dict = {"lambda.min.ratio": self.lmbd / self.lmbd_max}
